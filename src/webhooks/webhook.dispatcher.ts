@@ -1,13 +1,14 @@
 import crypto from 'crypto';
+import dns from 'node:dns/promises';
+import ipRangeCheck from 'ip-range-check';
 import { Agent, fetch as undiciFetch } from 'undici';
 import { WebhookConfig, WebhookPayload } from './webhook.types.js';
 import { WebhookStore } from './webhook.store.js';
 import { logger } from '../logger.js';
 import { getCorrelationId, getRequestId } from '../utils/asyncContext.js';
 import { getEffectiveRetryPolicy, calculateBackoff } from '../services/webhookRetry.js';
-import { resolveUpstreamTarget, isBlockedAddress } from '../lib/upstreamTarget.js';
 import { computeJitteredDelay, type RandomSource } from '../lib/retry.js';
-import { validateWebhookUrl, WebhookValidationError } from './webhook.validator.js';
+import { validateWebhookUrl, WebhookValidationError, BLOCKED_RANGES } from './webhook.validator.js';
 
 export const MAX_WEBHOOK_RESPONSE_BYTES = 64 * 1024;
 
@@ -107,12 +108,17 @@ function createPinnedAgent(hostname: string, pinnedAddress: string, pinnedFamily
 
 async function resolvePinnedTarget(url: string): Promise<{ address: string; family: number }> {
     const parsed = new URL(url);
-    const resolved = await resolveUpstreamTarget(parsed.hostname);
-    if (!resolved || resolved.addresses.length === 0) {
+    let addresses: { address: string; family: number }[];
+    try {
+        addresses = await dns.lookup(parsed.hostname, { all: true });
+    } catch {
         throw new Error(`Unable to resolve upstream target for ${parsed.hostname}`);
     }
-    const chosen = resolved.addresses[0];
-    if (isBlockedAddress(chosen.address)) {
+    if (addresses.length === 0) {
+        throw new Error(`Unable to resolve upstream target for ${parsed.hostname}`);
+    }
+    const chosen = addresses[0];
+    if (ipRangeCheck(chosen.address, BLOCKED_RANGES)) {
         throw new Error(`Blocked upstream address for ${parsed.hostname}: ${chosen.address}`);
     }
     return { address: chosen.address, family: chosen.family };

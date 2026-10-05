@@ -17,7 +17,7 @@ import { buildHopByHopSet } from '../lib/hopByHop.js';
 import {
   buildUpstreamTargetUrl,
   DEFAULT_UPSTREAM_HOST_ALLOWLIST,
-  resolveUpstreamAddresses,
+  resolveUpstreamTarget,
   validateResolvedUpstreamTarget,
 } from '../lib/upstreamTarget.js';
 import {
@@ -215,10 +215,10 @@ export function createProxyRouter(deps: ProxyDeps): Router {
       // answer returned to the connection layer is ignored — the connection
       // will only ever dial the addresses captured here.
       try {
-        const parsed = new URL(safeUpstreamTarget);
-        pinnedAddresses = await resolveUpstreamAddresses(parsed.hostname, {
+        const resolved = await resolveUpstreamTarget(safeUpstreamTarget, {
           allowedHosts: config.allowedHosts,
         });
+        pinnedAddresses = resolved.addresses.map((entry) => entry.address);
       } catch (error) {
         const message = error instanceof Error
           ? error.message

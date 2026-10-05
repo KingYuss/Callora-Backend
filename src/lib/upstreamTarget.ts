@@ -94,7 +94,7 @@ function matchesAllowEntry(host: string, entry: string): boolean {
 }
 
 function isExplicitlyAllowed(host: string, allowlist: readonly string[]): boolean {
-  return allowlist.some((entry) => entry !== '*' && matchesAllowEntry"host, entry));
+  return allowlist.some((entry) => entry !== '*' && matchesAllowEntry(host, entry));
 }
 
 function isAllowedHost(host: string, allowlist: readonly string[]): boolean {
