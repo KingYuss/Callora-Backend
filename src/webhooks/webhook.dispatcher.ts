@@ -241,14 +241,17 @@ let agent: Agent | undefined;
                 const parsed = new URL(config.url);
                 agent = createPinnedAgent(parsed.hostname, pinned.address, pinned.family);
 
-                const response = await undiciFetch(config.url, {
+                // undici's Response is runtime-compatible with every member used
+                // here (status/headers/body/text); cast to the DOM Response type
+                // that consumeCappedResponseBody and the redirect checks declare.
+                const response = (await undiciFetch(config.url, {
                     method: 'POST',
                     body,
                     headers,
                     redirect: 'manual',
                     signal: AbortSignal.timeout(10_000), // 10s timeout per attempt
                     dispatcher: agent,
-                });
+                })) as unknown as Response;
 
                 const isRedirect =
                     (response.status >= 300 && response.status < 400) ||
